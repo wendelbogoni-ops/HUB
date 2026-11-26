@@ -1,0 +1,266 @@
+-- ============================================================
+-- GENGAR HUB - FLUENT UI (VISUAL PREMIUM) - ESP + HITBOX
+-- ============================================================
+
+-- 1) Carregar a Fluent UI
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+-- ===================== ESTADOS =====================
+local espAtivo    = false
+local hitboxAtiva = false
+local hitboxTamanho = 50
+
+local highlights = {}
+local linhas = {}
+local adornments = {}
+local originaisHRP = {}
+
+-- ============================================================
+-- 2) CRIAR A JANELA
+-- ============================================================
+local Window = Fluent:CreateWindow({
+    Title = "GENGAR",
+    SubTitle = "Estamos Limpos",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Aqua",
+    MinimizeKey = Enum.KeyCode.K
+})
+
+-- Abas com Ícones
+local Tabs = {
+    ESP = Window:AddTab({ Title = "ESP", Icon = "eye" }),
+    Hitbox = Window:AddTab({ Title = "HITBOX", Icon = "box" }),
+    Config = Window:AddTab({ Title = "CONFIG", Icon = "settings" })
+}
+
+-- ============================================================
+-- 3) LÓGICA ESP (COR ROXO NEON)
+-- ============================================================
+local function criarLinha()
+    local ok, linha = pcall(function()
+        local l = Drawing.new("Line")
+        l.Thickness = 1.5
+        l.Color = Color3.fromRGB(200, 0, 255)
+        l.Transparency = 1
+        l.Visible = false
+        return l
+    end)
+    if ok then return linha end
+    return nil
+end
+
+local function aplicarESP(player)
+    if player == LocalPlayer then return end
+    local char = player.Character
+    if not char then return end
+
+    if highlights[player] then highlights[player]:Destroy() end
+    local hl = Instance.new("Highlight")
+    hl.FillColor = Color3.fromRGB(200, 0, 255)
+    hl.OutlineColor = Color3.fromRGB(200, 0, 255)
+    hl.FillTransparency = 0.4
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = char
+    highlights[player] = hl
+
+    if not linhas[player] then
+        linhas[player] = criarLinha()
+    end
+end
+
+local function limparTodoESP()
+    for _, h in pairs(highlights) do if h then h:Destroy() end end
+    for _, l in pairs(linhas) do if l then l:Remove() end end
+    highlights = {}
+    linhas = {}
+end
+
+-- Toggle ESP
+Tabs.ESP:AddToggle("ESP_Toggle", {
+    Title = "ESP + Linhas",
+    Default = false,
+    Callback = function(state)
+        espAtivo = state
+        if espAtivo then
+            for _, p in ipairs(Players:GetPlayers()) do aplicarESP(p) end
+        else
+            limparTodoESP()
+        end
+    end
+})
+
+-- ============================================================
+-- 4) LÓGICA HITBOX EXPANDER
+-- ============================================================
+local function criarAdornment(hrp, tamanho)
+    if adornments[hrp] then adornments[hrp]:Destroy() end
+    local box = Instance.new("BoxHandleAdornment")
+    box.Adornee = hrp
+    box.AlwaysOnTop = true
+    box.ZIndex = 10
+    box.Size = Vector3.new(tamanho, tamanho, tamanho)
+    box.Color3 = Color3.fromRGB(0, 255, 255)
+    box.Transparency = 0.5
+    box.Parent = hrp
+    return box
+end
+
+local function atualizarHitboxes()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+
+            if originaisHRP[player] and originaisHRP[player].HRP ~= hrp then
+                if adornments[player] then
+                    adornments[player]:Destroy()
+                    adornments[player] = nil
+                end
+                originaisHRP[player] = nil
+            end
+
+            if hrp then
+                local tamanhoReal = 4 + ((hitboxTamanho / 100) * 16)
+
+                if hitboxAtiva then
+                    if not originaisHRP[player] then
+                        originaisHRP[player] = {
+                            HRP = hrp,
+                            Size = hrp.Size,
+                            Transparency = hrp.Transparency,
+                            CanCollide = hrp.CanCollide
+                        }
+                    end
+
+                    hrp.Size = Vector3.new(tamanhoReal, tamanhoReal, tamanhoReal)
+                    hrp.Transparency = 0.6
+                    hrp.CanCollide = false
+
+                    if not adornments[player] or adornments[player].Adornee ~= hrp then
+                        adornments[player] = criarAdornment(hrp, tamanhoReal)
+                    else
+                        adornments[player].Size = Vector3.new(tamanhoReal, tamanhoReal, tamanhoReal)
+                    end
+                else
+                    if originaisHRP[player] then
+                        hrp.Size = originaisHRP[player].Size
+                        hrp.Transparency = originaisHRP[player].Transparency
+                        hrp.CanCollide = originaisHRP[player].CanCollide
+                        originaisHRP[player] = nil
+                    end
+                    if adornments[player] then
+                        adornments[player]:Destroy()
+                        adornments[player] = nil
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Toggle Hitbox
+Tabs.Hitbox:AddToggle("Hitbox_Toggle", {
+    Title = "Hitbox Expandida",
+    Default = false,
+    Callback = function(state) hitboxAtiva = state; atualizarHitboxes() end
+})
+
+-- Slider Hitbox
+Tabs.Hitbox:AddSlider("Hitbox_Size", {
+    Title = "Tamanho da Hitbox",
+    Default = 50,
+    Min = 0,
+    Max = 100,
+    Rounding = 0,
+    Callback = function(value) hitboxTamanho = value; if hitboxAtiva then atualizarHitboxes() end end
+})
+
+-- ============================================================
+-- 5) CONFIGURAÇÕES
+-- ============================================================
+Tabs.Config:AddColorpicker("ESP_Color", {
+    Title = "Cor do ESP",
+    Default = Color3.fromRGB(200, 0, 255),
+    Callback = function(color)
+        for _, hl in pairs(highlights) do
+            if hl and hl.Parent then hl.FillColor = color; hl.OutlineColor = color end
+        end
+        for _, l in pairs(linhas) do
+            if l then l.Color = color end
+        end
+    end
+})
+
+-- ============================================================
+-- 6) LOOP DE MANUTENÇÃO (MORTE / RESPAWN)
+-- ============================================================
+RunService.Heartbeat:Connect(function()
+    -- ESP
+    if espAtivo then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character
+               and (not highlights[player] or highlights[player].Parent ~= player.Character) then
+                aplicarESP(player)
+            end
+        end
+    end
+
+    -- Hitbox
+    if hitboxAtiva then
+        local tamanhoReal = 4 + ((hitboxTamanho / 100) * 16)
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    if not originaisHRP[player] or originaisHRP[player].HRP ~= hrp then
+                        if adornments[player] then
+                            adornments[player]:Destroy()
+                            adornments[player] = nil
+                        end
+                        originaisHRP[player] = {
+                            HRP = hrp,
+                            Size = hrp.Size,
+                            Transparency = hrp.Transparency,
+                            CanCollide = hrp.CanCollide
+                        }
+                        adornments[player] = criarAdornment(hrp, tamanhoReal)
+                    end
+
+                    hrp.Size = Vector3.new(tamanhoReal, tamanhoReal, tamanhoReal)
+                    hrp.Transparency = 0.6
+                    hrp.CanCollide = false
+
+                    if adornments[player] then
+                        adornments[player].Size = Vector3.new(tamanhoReal, tamanhoReal, tamanhoReal)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ============================================================
+-- 7) LIMPEZA QUANDO PLAYER SAI
+-- ============================================================
+Players.PlayerRemoving:Connect(function(player)
+    if highlights[player] then highlights[player]:Destroy(); highlights[player] = nil end
+    if linhas[player] then linhas[player]:Remove(); linhas[player] = nil end
+    if adornments[player] then adornments[player]:Destroy(); adornments[player] = nil end
+    originaisHRP[player] = nil
+end)
+
+-- ============================================================
+-- 8) NOTIFICAÇÃO INICIAL
+-- ============================================================
+Fluent:Notify({
+    Title = "Gengar Hub",
+    Content = "Carregado! Pressione K para abrir/fechar.",
+    Duration = 5
+})
